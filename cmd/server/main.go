@@ -7,6 +7,8 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/bootdotdev/learn-pub-sub-starter/internal/pubsub"
+	"github.com/bootdotdev/learn-pub-sub-starter/internal/routing"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -22,6 +24,25 @@ func main() {
 	}
 	defer conn.Close()
 	fmt.Println("Connecting Peril to RabbitMQ was successful!")
+
+	//open a channel
+	comChan, err := conn.Channel()
+	if err != nil {
+		log.Fatalf("Failed to open a channel to Peril connection: %s\n", err)
+		return
+	}
+
+	//publish
+	err = pubsub.PublishJSON(
+		comChan,
+		routing.ExchangePerilDirect,
+		routing.PauseKey,
+		routing.PlayingState{IsPaused: true},
+	)
+	if err != nil {
+		log.Printf("Could not publish: %s\n", err)
+		return
+	}
 
 	//wait for interuption signal
 	sigs := make(chan os.Signal, 1)
