@@ -5,6 +5,8 @@ import (
 	"log"
 
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/gamelogic"
+	"github.com/bootdotdev/learn-pub-sub-starter/internal/pubsub"
+	"github.com/bootdotdev/learn-pub-sub-starter/internal/routing"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -27,6 +29,16 @@ func main() {
 		log.Fatalf("Failed to open a channel to Peril connection: %s\n", err)
 		return
 	}
+
+	// Bind to queue
+	//channel, queue, err :=
+	pubsub.DeclareAndBind(
+		conn,
+		routing.ExchangePerilTopic,
+		routing.GameLogSlug,
+		"game_logs.*",
+		pubsub.QueueDurable,
+	)
 
 	// print help for start up
 	gamelogic.PrintServerHelp()
