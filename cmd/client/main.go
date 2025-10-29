@@ -3,9 +3,6 @@ package main
 import (
 	"fmt"
 	"log"
-	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/gamelogic"
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/pubsub"
@@ -43,9 +40,34 @@ func main() {
 		pubsub.QueueTransient,
 	)
 
-	//wait for interuption signal
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	<-sigs
-	fmt.Println("\nTerminating Peril connection and shutting down")
+	gamestate := gamelogic.NewGameState(user)
+
+	// start REPL
+	for {
+		words := gamelogic.GetInput()
+
+		switch command := words[0]; command {
+		case "spawn":
+			err = gamestate.CommandSpawn(words)
+			if err != nil {
+				log.Printf("Could not spawn unit: %s\n", err)
+			}
+		case "move":
+			_, err := gamestate.CommandMove(words)
+			if err != nil {
+				log.Printf("Could not move unit: %s\n", err)
+			}
+		case "status":
+			gamestate.CommandStatus()
+		case "spam":
+			fmt.Println("Spamming not allowed yet!")
+		case "quit":
+			gamelogic.PrintQuit()
+			return
+		case "help":
+			gamelogic.PrintClientHelp()
+		default:
+			fmt.Println("Unknown command. Please try something else.")
+		}
+	}
 }
