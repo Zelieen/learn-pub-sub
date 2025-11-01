@@ -41,6 +41,7 @@ func main() {
 	)
 
 	gamestate := gamelogic.NewGameState(user)
+	pubsub.SubscribeJSON[any](conn, routing.ExchangePerilDirect, fmt.Sprintf("pause.%s", user), routing.PauseKey, pubsub.QueueTransient, handlerPause(gamestate))
 
 	// start REPL
 	for {
@@ -69,5 +70,12 @@ func main() {
 		default:
 			fmt.Println("Unknown command. Please try something else.")
 		}
+	}
+}
+
+func handlerPause(gs *gamelogic.GameState) func(routing.PlayingState) {
+	return func(ps outing.PlayingState) {
+		defer fmt.Print("> ")
+		gs.HandlePause(ps)
 	}
 }
