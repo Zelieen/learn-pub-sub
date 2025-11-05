@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -40,16 +41,17 @@ func SubscribeJSON[T any](
 	queueName,
 	key string,
 	queueType SimpleQueueType, // an enum to represent "durable" or "transient"
-	handler func(T any),
+	handler func(T),
 ) error {
 
 	// check queue and exchange
-	DeclareAndBind(conn, exchange, queueName, key, queueType)
-
+	ch, queue, err := DeclareAndBind(conn, exchange, queueName, key, queueType)
+	if err != nil {
+		return fmt.Errorf("could not declare and bind queue: %v", err)
+	}
 	// new channel
-	newchan, err := (*amqp.Channel).Consume(
-		nil,
-		queueName,
+	newchan, err := ch.Consume(
+		queue.Name,
 		"",
 		false,
 		false,
@@ -58,21 +60,25 @@ func SubscribeJSON[T any](
 		nil,
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("could not consume messages: %v", err)
 	}
 
-	go rangeMessages(newchan, handler)
+	// unmarshal in an unnamed function to dodge having to hand over parameter: T any
+	go func() {
+		defer ch.Close()
+		var msgBody T
+		for msg := range newchan {
+			err := json.Unmarshal(msg.Body, &msgBody)
+			if err != nil {
+				fmt.Printf("could not unmarshal message: %v\n", err)
+				continue
+			}
+			handler(msgBody)
+			msg.Ack(false)
+		}
+	}()
 
 	return nil
-}
-
-func rangeMessages(channel <-chan amqp.Delivery, handler func(T any)) {
-	var msgBody any
-	for msg := range channel {
-		json.Unmarshal(msg.Body, msgBody)
-		handler(msgBody)
-		msg.Ack(false)
-	}
 }
 
 func DeclareAndBind(

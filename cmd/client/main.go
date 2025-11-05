@@ -30,18 +30,13 @@ func main() {
 		return
 	}
 
-	// Bind to queue
-	//channel, queue, err :=
-	pubsub.DeclareAndBind(
-		conn,
-		routing.ExchangePerilDirect,
-		fmt.Sprintf("%s.%s", routing.PauseKey, user),
-		routing.PauseKey,
-		pubsub.QueueTransient,
-	)
-
 	gamestate := gamelogic.NewGameState(user)
-	pubsub.SubscribeJSON[any](conn, routing.ExchangePerilDirect, fmt.Sprintf("pause.%s", user), routing.PauseKey, pubsub.QueueTransient, handlerPause(gamestate))
+
+	// listen for server PAUSE
+	err = pubsub.SubscribeJSON(conn, routing.ExchangePerilDirect, fmt.Sprintf("pause.%s", user), routing.PauseKey, pubsub.QueueTransient, handlerPause(gamestate))
+	if err != nil {
+		log.Fatalf("Could not subscribe to pause: %v", err)
+	}
 
 	// start REPL
 	for {
@@ -74,7 +69,7 @@ func main() {
 }
 
 func handlerPause(gs *gamelogic.GameState) func(routing.PlayingState) {
-	return func(ps outing.PlayingState) {
+	return func(ps routing.PlayingState) {
 		defer fmt.Print("> ")
 		gs.HandlePause(ps)
 	}
