@@ -33,9 +33,24 @@ func main() {
 	gamestate := gamelogic.NewGameState(user)
 
 	// listen for server PAUSE
-	err = pubsub.SubscribeJSON(conn, routing.ExchangePerilDirect, fmt.Sprintf("pause.%s", user), routing.PauseKey, pubsub.QueueTransient, handlerPause(gamestate))
+	err = pubsub.SubscribeJSON(conn,
+		routing.ExchangePerilDirect,
+		fmt.Sprintf("pause.%s", user),
+		routing.PauseKey,
+		pubsub.QueueTransient,
+		handlerPause(gamestate))
 	if err != nil {
 		log.Fatalf("Could not subscribe to pause: %v", err)
+	}
+	// listen to any army_moves
+	err = pubsub.SubscribeJSON(conn,
+		string(routing.ExchangePerilTopic),
+		fmt.Sprintf("%s.%s", routing.ArmyMovesPrefix, user),
+		fmt.Sprintf("%s.*", routing.ArmyMovesPrefix),
+		pubsub.QueueTransient,
+		handlerMove(gamelogic.ArmyMove{}))
+	if err != nil {
+		log.Fatalf("Could not subscribe to moves: %v", err)
 	}
 
 	// start REPL
