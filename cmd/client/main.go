@@ -48,9 +48,15 @@ func main() {
 		fmt.Sprintf("%s.%s", routing.ArmyMovesPrefix, user),
 		fmt.Sprintf("%s.*", routing.ArmyMovesPrefix),
 		pubsub.QueueTransient,
-		handlerMove(gamelogic.ArmyMove{}))
+		handlerMove(gamestate))
 	if err != nil {
 		log.Fatalf("Could not subscribe to moves: %v", err)
+	}
+
+	// open channel for moves
+	publishCh, err := conn.Channel()
+	if err != nil {
+		log.Fatalf("could not create channel: %v", err)
 	}
 
 	// start REPL
@@ -64,10 +70,22 @@ func main() {
 				log.Printf("Could not spawn unit: %s\n", err)
 			}
 		case "move":
-			_, err := gamestate.CommandMove(words)
+			mv, err := gamestate.CommandMove(words)
 			if err != nil {
 				log.Printf("Could not move unit: %s\n", err)
+				continue
 			}
+			err = pubsub.PublishJSON(
+				publishCh,
+				string(routing.ExchangePerilTopic),
+				fmt.Sprintf("%s.%s", routing.ArmyMovesPrefix, user),
+				mv,
+			)
+			if err != nil {
+				log.Printf("Could not publich the move: %s\n", err)
+				continue
+			}
+			log.Printf("Moved %s unit(s) to %s.\n", len(mv.Units), mv.ToLocation)
 		case "status":
 			gamestate.CommandStatus()
 		case "spam":
@@ -80,12 +98,5 @@ func main() {
 		default:
 			fmt.Println("Unknown command. Please try something else.")
 		}
-	}
-}
-
-func handlerPause(gs *gamelogic.GameState) func(routing.PlayingState) {
-	return func(ps routing.PlayingState) {
-		defer fmt.Print("> ")
-		gs.HandlePause(ps)
 	}
 }
