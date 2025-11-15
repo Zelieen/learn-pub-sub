@@ -17,6 +17,14 @@ const (
 	QueueTransient
 )
 
+type AckType int
+
+const (
+	Ack AckType = iota
+	NackRequeue
+	NackDiscard
+)
+
 func PublishJSON[T any](ch *amqp.Channel, exchange, key string, val T) error {
 
 	load, err := json.Marshal(val)
@@ -41,7 +49,7 @@ func SubscribeJSON[T any](
 	queueName,
 	key string,
 	queueType SimpleQueueType, // an enum to represent "durable" or "transient"
-	handler func(T),
+	handler func(T) AckType,
 ) error {
 
 	// check queue and exchange
@@ -73,8 +81,21 @@ func SubscribeJSON[T any](
 				fmt.Printf("could not unmarshal message: %v\n", err)
 				continue
 			}
-			handler(msgBody)
-			msg.Ack(false)
+			acknowl := handler(msgBody)
+			switch acknowl {
+			case Ack:
+				msg.Ack(false)
+				log.Printf("Ack: message processed")
+			case NackRequeue:
+				msg.Nack(false, true)
+				log.Printf("Nack: message requeue")
+			case NackDiscard:
+				msg.Nack(false, false)
+				log.Printf("Nack: message discarded")
+			default:
+				msg.Nack(false, false)
+				log.Printf("Nack: message is problematic and discarded")
+			}
 		}
 	}()
 
