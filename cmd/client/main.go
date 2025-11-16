@@ -32,6 +32,12 @@ func main() {
 
 	gamestate := gamelogic.NewGameState(user)
 
+	// open channel for moves
+	publishCh, err := conn.Channel()
+	if err != nil {
+		log.Fatalf("could not create channel: %v", err)
+	}
+
 	// listen for server PAUSE
 	err = pubsub.SubscribeJSON(conn,
 		routing.ExchangePerilDirect,
@@ -44,19 +50,24 @@ func main() {
 	}
 	// listen to any army_moves
 	err = pubsub.SubscribeJSON(conn,
-		string(routing.ExchangePerilTopic),
+		routing.ExchangePerilTopic,
 		fmt.Sprintf("%s.%s", routing.ArmyMovesPrefix, user),
 		fmt.Sprintf("%s.*", routing.ArmyMovesPrefix),
 		pubsub.QueueTransient,
-		handlerMove(gamestate))
+		handlerMove(gamestate, publishCh))
 	if err != nil {
 		log.Fatalf("Could not subscribe to moves: %v", err)
 	}
 
-	// open channel for moves
-	publishCh, err := conn.Channel()
+	// listen for war
+	err = pubsub.SubscribeJSON(conn,
+		routing.ExchangePerilTopic,
+		routing.WarRecognitionsPrefix,
+		fmt.Sprintf("%s.*", routing.WarRecognitionsPrefix),
+		pubsub.QueueDurable,
+		handlerWar(gamestate))
 	if err != nil {
-		log.Fatalf("could not create channel: %v", err)
+		log.Fatalf("Could not subscribe to war: %v", err)
 	}
 
 	// start REPL
@@ -85,7 +96,7 @@ func main() {
 				log.Printf("Could not publich the move: %s\n", err)
 				continue
 			}
-			log.Printf("Moved %s unit(s) to %s.\n", len(mv.Units), mv.ToLocation)
+			log.Printf("Moved %v unit(s) to %s.\n", len(mv.Units), mv.ToLocation)
 		case "status":
 			gamestate.CommandStatus()
 		case "spam":
