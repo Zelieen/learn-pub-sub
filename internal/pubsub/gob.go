@@ -52,3 +52,7 @@ func PublishGob[T any](ch *amqp.Channel, exchange, key string, log GameLog) erro
 
 	return nil
 }
+
+func PublishGameLog(ch *amqp.Channel, user string, msg string) error {
+	return nil
+}
